@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en-GB"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Parcel Tracker</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mut:#6b7686;--line:#e3e7ed;--acc:#0b6bcb;--ok:#13804a;--bad:#c62828;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:14px 14px 100px}
+h1{font-size:20px;margin:4px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 4px}
+input,select,textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+button.alt{background:#eaf2fb;color:var(--acc)}
+button.del{background:none;color:var(--bad);padding:4px 8px}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}
+.big{font-size:56px;font-weight:700;text-align:center;line-height:1}
+.pay{font-size:28px;font-weight:700;text-align:center;color:var(--ok)}
+.cnt button{font-size:26px;padding:14px 0}
+.mut{color:var(--mut);font-size:13px}
+.line{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.line:last-child{border:0}
+.flag{color:var(--bad);font-size:12px}
+.tot{display:flex;justify-content:space-between;font-weight:700;font-size:18px;padding-top:10px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 4px;font-size:13px}
+nav button.on{color:var(--acc)}
+textarea{height:110px;font-size:12px;font-family:ui-monospace,monospace}
+</style></head><body>
+<main id="m"></main>
+<nav id="n"></nav>
+<script>
+var K='parcelTracker1',S,cur,wk=0,tab='today';
+function load(){try{S=JSON.parse(localStorage.getItem(K))}catch(e){}
+if(!S)S={rate:1.2,days:{},exp:[],paid:{}}}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+function iso(d){var z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10)}
+function P(s){return new Date(s+'T12:00:00')}
+function gbp(n){return '£'+(+n||0).toFixed(2)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function mon(s){var d=P(s),k=(d.getDay()+5)%7;d.setDate(d.getDate()-k);return d}
+function pretty(s){return P(s).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
+function day(d){return S.days[d]||{parcels:0,rate:S.rate,reported:'',note:''}}
+function upd(f){var r=S.days[cur]||(S.days[cur]={parcels:0,rate:S.rate,reported:'',note:''});f(r);save();render()}
+function add(n){upd(function(r){r.parcels=Math.max(0,(+r.parcels||0)+n)})}
+function setP(v){upd(function(r){r.parcels=Math.max(0,parseInt(v)||0)})}
+function setR(v){upd(function(r){r.rate=parseFloat(v)||0})}
+function setRep(v){upd(function(r){r.reported=v})}
+function setNote(v){upd(function(r){r.note=v})}
+function go(t){tab=t;render()}
+function open_(d){cur=d;tab='today';render()}
+function pay(r){return (+r.parcels||0)*(+r.rate||0)}
+
+function vToday(){var r=day(cur);
+return '<h1>Today’s deliveries</h1><div class="mut" style="margin:-8px 0 10px">ShamsExpress LTD · Co. no. 17541583</div><div class="card"><label>Date</label><input type="date" value="'+cur+'" onchange="cur=this.value||cur;render()">'
++'<div style="margin:18px 0 6px" class="big">'+(+r.parcels||0)+'</div><div class="mut" style="text-align:center">parcels delivered</div>'
++'<div class="row cnt" style="margin:14px 0"><button class="alt" onclick="add(-1)">−1</button><button onclick="add(1)">+1</button><button onclick="add(5)">+5</button><button onclick="add(10)">+10</button></div>'
++'<label>Or type the total</label><input type="number" inputmode="numeric" value="'+(+r.parcels||0)+'" onchange="setP(this.value)">'
++'<div class="pay" style="margin-top:14px">'+gbp(pay(r))+'</div></div>'
++'<div class="card"><label>Rate per parcel for this day (£)</label><input type="number" step="0.01" inputmode="decimal" value="'+(+r.rate||0)+'" onchange="setR(this.value)">'
++'<label>Parcels InPost says you delivered (optional, to check pay)</label><input type="number" inputmode="numeric" value="'+esc(r.reported)+'" onchange="setRep(this.value)">'
++(r.reported!==''&&+r.reported!==+r.parcels?'<div class="flag" style="margin-top:6px">Difference of '+Math.abs(r.reported-r.parcels)+' parcels vs your count</div>':'')
++'<label>Notes (missed scans, bad weather, extra rounds…)</label><input value="'+esc(r.note)+'" onchange="setNote(this.value)"></div>'}
+
+function vWeek(){var s=mon(cur);s.setDate(s.getDate()+wk*7);var k=iso(s),tp=0,tm=0,rows='';
+for(var i=0;i<7;i++){var d=new Date(s);d.setDate(s.getDate()+i);var q=iso(d),r=day(q);tp+=+r.parcels||0;tm+=pay(r);
+rows+='<div class="line" onclick="open_(\''+q+'\')"><div>'+pretty(q)+(r.reported!==''&&+r.reported!==+r.parcels?'<div class="flag">InPost count: '+esc(r.reported)+'</div>':'')+'</div><div style="text-align:right">'+(+r.parcels||0)+' × '+gbp(r.rate)+'<br><b>'+gbp(pay(r))+'</b></div></div>'}
+var e=new Date(s);e.setDate(s.getDate()+6);var got=S.paid[k]!==undefined?S.paid[k]:'';
+var diff=got!==''?(+got-tm):null;
+return '<h1>Weekly pay</h1><div class="card"><div class="row"><button class="alt" onclick="wk--;render()">‹ Prev</button><div style="text-align:center;font-weight:600">'+pretty(k)+' – '+pretty(iso(e))+'</div><button class="alt" onclick="wk++;render()">Next ›</button></div></div>'
++'<div class="card">'+rows+'<div class="tot"><span>'+tp+' parcels</span><span style="color:var(--ok)">'+gbp(tm)+'</span></div></div>'
++'<div class="card"><label>Amount actually paid for this week (£)</label><input type="number" step="0.01" inputmode="decimal" value="'+got+'" onchange="S.paid[\''+k+'\']=this.value;save();render()">'
++(diff===null?'':'<div style="margin-top:8px;font-weight:600;color:'+(Math.abs(diff)<0.005?'var(--ok)':'var(--bad)')+'">'+(Math.abs(diff)<0.005?'Matches your records ✓':(diff<0?'Underpaid by '+gbp(-diff):'Overpaid by '+gbp(diff)))+'</div>')+'</div>'}
+
+var CATS=['Fuel','Vehicle repairs & servicing','Vehicle insurance','Phone & data','Equipment & uniform','Parking & tolls','Accountancy','Other'];
+function toast(m){var d=document.createElement('div');d.textContent=m;d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#1c2430;color:#fff;padding:10px 16px;border-radius:10px;z-index:20';document.body.appendChild(d);setTimeout(function(){d.remove()},2500)}
+function idb(){return new Promise(function(res){try{var q=indexedDB.open('ptr',1);q.onupgradeneeded=function(){q.result.createObjectStore('r')};q.onsuccess=function(){res(q.result)};q.onerror=function(){res(null)}}catch(e){res(null)}})}
+function rput(id,b){return idb().then(function(d){if(!d)return;return new Promise(function(r){var t=d.transaction('r','readwrite');t.objectStore('r').put(b,id);t.oncomplete=r;t.onerror=r})})}
+function rget(id){return idb().then(function(d){if(!d)return null;return new Promise(function(r){var q=d.transaction('r').objectStore('r').get(id);q.onsuccess=function(){r(q.result||null)};q.onerror=function(){r(null)}})})}
+function rdel(id){return idb().then(function(d){if(d)d.transaction('r','readwrite').objectStore('r').delete(id)})}
+function shrink(f){return new Promise(function(res){var img=new Image(),u=URL.createObjectURL(f);img.onload=function(){var s=Math.min(1,1400/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);c.toBlob(function(b){URL.revokeObjectURL(u);res(b||f)},'image/jpeg',.75)};img.onerror=function(){res(f)};img.src=u})}
+function addExp(){var g=function(i){return document.getElementById(i).value};var a=parseFloat(g('xa'));
+if(!a||!g('xd'))return toast('Please enter a date and amount');
+var fl=document.getElementById('xr').files[0],x={id:Date.now(),date:g('xd'),cat:g('xc'),desc:g('xn'),amt:a,vat:parseFloat(g('xv'))||0};
+var fin=function(){S.exp.push(x);save();render();toast('Expense saved')};
+if(fl){shrink(fl).then(function(b){return rput(x.id,b)}).then(function(){x.rc=1;fin()})}else fin()}
+function delExp(id){S.exp=S.exp.filter(function(x){return x.id!==id});rdel(id);save();render()}
+function viewR(id){rget(id).then(function(b){if(!b)return toast('Receipt not found on this device');var r=new FileReader();r.onload=function(){var o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:#fff;z-index:9;overflow:auto;padding:14px';o.innerHTML='<button onclick="this.parentNode.remove()">Close</button><img src="'+r.result+'" style="width:100%;margin-top:10px">';document.body.appendChild(o)};r.readAsDataURL(b)})}
+function rng(){return [document.getElementById('ef').value,document.getElementById('et').value]}
+function mailR(){var r=rng(),t=document.getElementById('eo').value;location.href='mailto:'+encodeURIComponent(S.acct||'')+'?subject='+encodeURIComponent('ShamsExpress LTD – income & expenses '+r[0]+' to '+r[1])+'&body='+encodeURIComponent(t)}
+function shareR(){var r=rng(),t=document.getElementById('eo').value,ex=S.exp.filter(function(x){return x.rc&&x.date>=r[0]&&x.date<=r[1]});
+Promise.all(ex.map(function(x){return rget(x.id)})).then(function(bs){var fs=[new File([t],'ShamsExpress-report-'+r[0]+'-to-'+r[1]+'.csv',{type:'text/csv'})];
+bs.forEach(function(b,i){if(b)fs.push(new File([b],'receipt-'+ex[i].date+'-'+(i+1)+'.jpg',{type:'image/jpeg'}))});
+if(navigator.canShare&&navigator.canShare({files:fs})){navigator.share({files:fs,title:'ShamsExpress LTD report',text:'Income & expenses '+r[0]+' to '+r[1]}).catch(function(){})}else{toast('Sharing files isn’t supported here – opening email instead');mailR()}})}
+function vExp(){var list=S.exp.slice().sort(function(a,b){return a.date<b.date?1:-1}),t=0,bc={};
+S.exp.forEach(function(x){t+=x.amt;bc[x.cat]=(bc[x.cat]||0)+x.amt});
+return '<h1>Expenses</h1><div class="card"><label>Date</label><input id="xd" type="date" value="'+iso(new Date())+'"><label>Category</label><select id="xc">'
++CATS.map(function(c){return '<option>'+c+'</option>'}).join('')+'</select><label>Description</label><input id="xn" placeholder="e.g. Shell diesel"><label>Receipt photo (optional – take a photo or choose one)</label><input id="xr" type="file" accept="image/*">'
++'<div class="row"><div><label>Amount (£, total paid)</label><input id="xa" type="number" step="0.01" inputmode="decimal"></div><div><label>of which VAT (£)</label><input id="xv" type="number" step="0.01" inputmode="decimal"></div></div>'
++'<button style="width:100%;margin-top:12px" onclick="addExp()">Add expense</button></div>'
++'<div class="card"><b>Total: '+gbp(t)+'</b>'+Object.keys(bc).map(function(c){return '<div class="line mut"><span>'+esc(c)+'</span><span>'+gbp(bc[c])+'</span></div>'}).join('')+'</div>'
++'<div class="card">'+(list.length?list.map(function(x){return '<div class="line"><div>'+pretty(x.date)+' · '+esc(x.cat)+'<div class="mut">'+esc(x.desc)+'</div></div><div style="text-align:right"><b>'+gbp(x.amt)+'</b><br>'+(x.rc?'<button class="del" style="color:var(--acc)" onclick="viewR('+x.id+')">📎 Receipt</button>':'')+'<button class="del" onclick="delExp('+x.id+')">Delete</button></div></div>'}).join(''):'<div class="mut">No expenses yet.</div>')+'</div>'}
+
+function taxYr(){var n=new Date(),y=n.getFullYear(),s=new Date(y,3,6);if(n<s)s=new Date(y-1,3,6);return iso(s)}
+function vMore(){var ts=taxYr(),inc=0,par=0,ex=0;
+Object.keys(S.days).forEach(function(d){if(d>=ts){inc+=pay(S.days[d]);par+=+S.days[d].parcels||0}});
+S.exp.forEach(function(x){if(x.date>=ts)ex+=x.amt});
+return '<h1>Settings & export</h1><div class="card"><label>Default rate per parcel (£) – used for new days</label><input type="number" step="0.01" inputmode="decimal" value="'+S.rate+'" onchange="S.rate=parseFloat(this.value)||0;save();render()">'
++'<div class="mut" style="margin-top:6px">Changing this won’t alter days you’ve already logged.</div></div>'
++'<div class="card"><b>ShamsExpress LTD</b><div class="mut">Company no. 17541583<br>6 Park Grange, Hindley, Wigan, WN2 3RT</div><label>Accountant’s email</label><input type="email" value="'+esc(S.acct||'')+'" onchange="S.acct=this.value;save()"></div>'
++'<div class="card"><b>Tax year to date (from '+pretty(ts)+')</b><div class="line"><span>Parcels</span><span>'+par+'</span></div><div class="line"><span>Delivery income</span><span>'+gbp(inc)+'</span></div><div class="line"><span>Expenses</span><span>'+gbp(ex)+'</span></div><div class="tot"><span>Rough profit</span><span>'+gbp(inc-ex)+'</span></div></div>'
++'<div class="card"><b>Export for your accountant</b><div class="row"><div><label>From</label><input id="ef" type="date" value="'+ts+'"></div><div><label>To</label><input id="et" type="date" value="'+iso(new Date())+'"></div></div>'
++'<button style="width:100%;margin-top:12px" onclick="doExp()">Create report</button><textarea id="eo" readonly style="margin-top:10px;display:none"></textarea><div id="eb" style="display:none"><button class="alt" style="width:100%;margin-top:8px" onclick="cp()">Copy report</button><button style="width:100%;margin-top:8px" onclick="shareR()">Share report + receipts</button><button class="alt" style="width:100%;margin-top:8px" onclick="mailR()">Email report to accountant</button></div></div>'
++'<div class="mut">Your data is saved on this device and browser only. Use the export regularly as a backup.</div>'}
+function doExp(){var f=document.getElementById('ef').value,t=document.getElementById('et').value,o='ShamsExpress LTD\nRegistered office: 6 Park Grange, Hindley, Wigan, WN2 3RT\nCompany number: 17541583\nPeriod: '+f+' to '+t+'\n\nINCOME (InPost deliveries)\nDate,Parcels,Rate,Total,Note\n',ti=0,te=0;
+Object.keys(S.days).sort().forEach(function(d){if(d>=f&&d<=t){var r=S.days[d];if(!+r.parcels)return;ti+=pay(r);o+=d+','+r.parcels+','+(+r.rate).toFixed(2)+','+pay(r).toFixed(2)+',"'+String(r.note||'').replace(/"/g,'""')+'"\n'}});
+o+='Total income,,,'+ti.toFixed(2)+'\n\nEXPENSES\nDate,Category,Description,Amount,VAT,Receipt kept\n';
+S.exp.slice().sort(function(a,b){return a.date<b.date?-1:1}).forEach(function(x){if(x.date>=f&&x.date<=t){te+=x.amt;o+=x.date+','+x.cat+',"'+String(x.desc||'').replace(/"/g,'""')+'",'+x.amt.toFixed(2)+','+x.vat.toFixed(2)+','+(x.rc?'Yes':'No')+'\n'}});
+o+='Total expenses,,,'+te.toFixed(2)+'\n';
+var a=document.getElementById('eo');a.value=o;a.style.display='block';document.getElementById('eb').style.display='block'}
+function cp(){var a=document.getElementById('eo');try{navigator.clipboard.writeText(a.value).then(function(){toast('Copied')},function(){a.select()})}catch(e){a.select()}}
+
+function render(){var v={today:vToday,week:vWeek,exp:vExp,more:vMore}[tab]();
+document.getElementById('m').innerHTML=v;
+var T=[['today','📦','Today'],['week','💷','Weekly pay'],['exp','🧾','Expenses'],['more','⚙️','More']];
+document.getElementById('n').innerHTML=T.map(function(t){return '<button class="'+(tab===t[0]?'on':'')+'" onclick="go(\''+t[0]+'\')">'+t[1]+'<br>'+t[2]+'</button>'}).join('')}
+load();cur=iso(new Date());render();
+</script></body></html>
