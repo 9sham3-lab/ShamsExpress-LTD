@@ -25,7 +25,7 @@ button.del{background:none;color:var(--bad);padding:4px 8px}
 .flag{color:var(--bad);font-size:12px}
 .tot{display:flex;justify-content:space-between;font-weight:700;font-size:18px;padding-top:10px}
 nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 4px;font-size:13px}
+nav button{flex:1;background:none;color:var(--mut);border-radius:0;padding:12px 2px;font-size:12px}
 nav button.on{color:var(--acc)}
 textarea{height:110px;font-size:12px;font-family:ui-monospace,monospace}
 </style></head><body>
@@ -55,6 +55,34 @@ function pay(r){return (+r.parcels||0)*(+r.rate||0)}
 function mi(r){var s=parseFloat(r.ms),f=parseFloat(r.mf);return (isNaN(s)||isNaN(f)||f<s)?0:Math.round((f-s)*10)/10}
 function setMS(v){upd(function(r){r.ms=v})}
 function setMF(v){upd(function(r){r.mf=v})}
+function setHS(v){upd(function(r){r.hs=v})}
+function setHF(v){upd(function(r){r.hf=v})}
+function hrs(r){if(!r.hs||!r.hf)return 0;var a=r.hs.split(':'),b=r.hf.split(':'),m=(parseInt(b[0])*60+parseInt(b[1]))-(parseInt(a[0])*60+parseInt(a[1]));if(m<0)m+=1440;return m/60}
+var dr='week';
+function setDR(v){dr=v;render()}
+function rangeStart(){var t=iso(new Date());if(dr==='week')return iso(mon(t));if(dr==='month')return t.slice(0,8)+'01';if(dr==='30'){var d=new Date();d.setDate(d.getDate()-29);return iso(d)}if(dr==='tax')return taxYr();return '0000-00-00'}
+function cmp(a,b){return b?` (${a>=b?'▲':'▼'} ${Math.abs(Math.round((a-b)/b*100))}%)`:''}
+function bars(it){var mx=Math.max.apply(null,it.map(function(i){return i.v}).concat([1]));return `<div style='display:flex;gap:6px;align-items:flex-end;height:130px'>`+it.map(function(i){return `<div style='flex:1;text-align:center'><div class='mut' style='font-size:10px'>${i.v?'£'+Math.round(i.v):''}</div><div style='background:var(--acc);border-radius:4px 4px 0 0;height:${Math.round(i.v/mx*90)}px;min-height:2px'></div><div class='mut' style='font-size:10px'>${i.l}</div></div>`}).join('')+`</div>`}
+function stat(l,v,s){return `<div class='card' style='margin:0'><div class='mut'>${l}</div><div style='font-size:24px;font-weight:700;margin-top:6px'>${v}</div>${s?`<div class='mut' style='font-size:11px;margin-top:2px'>${s}</div>`:''}</div>`}
+function vDash(){var s=rangeStart(),ks=Object.keys(S.days).filter(function(d){return d>=s&&+S.days[d].parcels>0}).sort(),tp=0,tm=0,tmi=0,tmm=0,th=0,thp=0,thm=0,best=null,worst=null;
+ks.forEach(function(d){var r=S.days[d],p=pay(r),h=hrs(r),m=mi(r);tp+=+r.parcels;tm+=p;if(m){tmi+=m;tmm+=p}if(h){th+=h;thp+=+r.parcels;thm+=p}if(!best||p>best.v)best={d:d,v:p,n:+r.parcels};if(!worst||p<worst.v)worst={d:d,v:p,n:+r.parcels}});
+var n=ks.length,no='—',hint=th?'':'Add start/finish times',wk0=mon(iso(new Date())),W=[],M=[],i,k,a,e,sum,ym,nw=new Date();
+for(i=7;i>=0;i--){a=new Date(wk0);a.setDate(wk0.getDate()-7*i);sum=0;for(k=0;k<7;k++){e=new Date(a);e.setDate(a.getDate()+k);sum+=pay(day(iso(e)))}W.push({v:sum,l:a.toLocaleDateString('en-GB',{day:'numeric',month:'short'})})}
+for(i=5;i>=0;i--){a=new Date(nw.getFullYear(),nw.getMonth()-i,1);ym=iso(a).slice(0,7);sum=0;Object.keys(S.days).forEach(function(d){if(d.slice(0,7)===ym)sum+=pay(S.days[d])});M.push({v:sum,l:a.toLocaleDateString('en-GB',{month:'short'})})}
+return `<h1>Dashboard</h1><div class='card'><select onchange='setDR(this.value)'>${[['week','This pay week'],['month','This month'],['30','Last 30 days'],['tax','Tax year to date'],['all','All time']].map(function(o){return `<option value='${o[0]}'${dr===o[0]?' selected':''}>${o[1]}</option>`}).join('')}</select></div>`
++`<div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px'>`
++stat('Turnover',gbp(tm),n+' working days')
++stat('Parcels delivered',tp||no)
++stat('Mileage',tmi?(Math.round(tmi*10)/10)+' mi':no,tmi?'':'Add odometer readings')
++stat('Earnings per mile',tmi?gbp(tmm/tmi):no)
++stat('Avg per working day',n?gbp(tm/n):no)
++stat('Parcels per hour',th?(thp/th).toFixed(1):no,hint)
++stat('Earnings per parcel',tp?gbp(tm/tp):no)
++stat('Earnings per hour',th?gbp(thm/th):no,hint)
++`</div>`
++`<div class='card'><b>Best &amp; worst days</b>`+(best?`<div class='line'><span>🏆 Best<div class='mut'>${pretty(best.d)}</div></span><span style='text-align:right'><b>${gbp(best.v)}</b><div class='mut'>${best.n} parcels</div></span></div><div class='line'><span>⚠️ Lowest<div class='mut'>${pretty(worst.d)}</div></span><span style='text-align:right'><b>${gbp(worst.v)}</b><div class='mut'>${worst.n} parcels</div></span></div>`:`<div class='mut'>No working days in this period.</div>`)+`</div>`
++`<div class='card'><b>Weekly trend</b> <span class='mut'>(Sun–Sat)</span>${bars(W)}<div class='mut' style='margin-top:8px'>This week so far ${gbp(W[7].v)} vs last week ${gbp(W[6].v)}${cmp(W[7].v,W[6].v)}</div></div>`
++`<div class='card'><b>Monthly trend</b>${bars(M)}<div class='mut' style='margin-top:8px'>This month so far ${gbp(M[5].v)} vs last month ${gbp(M[4].v)}${cmp(M[5].v,M[4].v)}</div></div>`}
 function lastFin(){var k=Object.keys(S.days).filter(function(d){return d<cur&&S.days[d].mf!==undefined&&S.days[d].mf!==''}).sort().pop();return k?S.days[k].mf:''}
 
 function vToday(){var r=day(cur);
@@ -63,6 +91,7 @@ return '<h1>Today’s deliveries</h1><div class="mut" style="margin:-8px 0 10px"
 +'<div class="row cnt" style="margin:14px 0"><button class="alt" onclick="add(-1)">−1</button><button onclick="add(1)">+1</button><button onclick="add(5)">+5</button><button onclick="add(10)">+10</button></div>'
 +'<label>Or type the total</label><input type="number" inputmode="numeric" value="'+(+r.parcels||0)+'" onchange="setP(this.value)">'
 +'<div class="pay" style="margin-top:14px">'+gbp(pay(r))+'</div></div>'
++'<div class="card"><b>Working hours</b><div class="row"><div><label>Start time</label><input type="time" value="'+esc(r.hs)+'" onchange="setHS(this.value)"></div><div><label>Finish time</label><input type="time" value="'+esc(r.hf)+'" onchange="setHF(this.value)"></div></div><div style="margin-top:10px;font-weight:600">Hours worked: '+(hrs(r)?hrs(r).toFixed(2):'0')+'</div></div>'
 +'<div class="card"><b>Mileage</b><div class="row"><div><label>Start (odometer)</label><input type="number" inputmode="decimal" placeholder="'+(lastFin()?'Last: '+lastFin():'')+'" value="'+esc(r.ms)+'" onchange="setMS(this.value)"></div><div><label>Finish (odometer)</label><input type="number" inputmode="decimal" value="'+esc(r.mf)+'" onchange="setMF(this.value)"></div></div><div style="margin-top:10px;font-weight:600">Miles covered: '+mi(r)+'</div>'+(parseFloat(r.mf)<parseFloat(r.ms)?'<div class="flag">Finish is lower than start</div>':'')+'</div>'
 +'<div class="card"><label>Rate per parcel for this day (£)</label><input type="number" step="0.01" inputmode="decimal" value="'+(+r.rate||0)+'" onchange="setR(this.value)">'
 +'<label>Parcels InPost says you delivered (optional, to check pay)</label><input type="number" inputmode="numeric" value="'+esc(r.reported)+'" onchange="setRep(this.value)">'
@@ -127,9 +156,9 @@ o+='Total expenses,,,'+te.toFixed(2)+'\n';
 var a=document.getElementById('eo');a.value=o;a.style.display='block';document.getElementById('eb').style.display='block'}
 function cp(){var a=document.getElementById('eo');try{navigator.clipboard.writeText(a.value).then(function(){toast('Copied')},function(){a.select()})}catch(e){a.select()}}
 
-function render(){var v={today:vToday,week:vWeek,exp:vExp,more:vMore}[tab]();
+function render(){var v={today:vToday,week:vWeek,dash:vDash,exp:vExp,more:vMore}[tab]();
 document.getElementById('m').innerHTML=v;
-var T=[['today','📦','Today'],['week','💷','Weekly pay'],['exp','🧾','Expenses'],['more','⚙️','More']];
+var T=[['today','📦','Today'],['week','💷','Weekly pay'],['dash','📊','Stats'],['exp','🧾','Expenses'],['more','⚙️','More']];
 document.getElementById('n').innerHTML=T.map(function(t){return '<button class="'+(tab===t[0]?'on':'')+'" onclick="go(\''+t[0]+'\')">'+t[1]+'<br>'+t[2]+'</button>'}).join('')}
 load();cur=iso(new Date());render();
 </script></body></html>
