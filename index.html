@@ -40,7 +40,7 @@ function iso(d){var z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.t
 function P(s){return new Date(s+'T12:00:00')}
 function gbp(n){return '£'+(+n||0).toFixed(2)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-function mon(s){var d=P(s),k=(d.getDay()+5)%7;d.setDate(d.getDate()-k);return d}
+function mon(s){var d=P(s),k=d.getDay();d.setDate(d.getDate()-k);return d}
 function pretty(s){return P(s).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
 function day(d){return S.days[d]||{parcels:0,rate:S.rate,reported:'',note:''}}
 function upd(f){var r=S.days[cur]||(S.days[cur]={parcels:0,rate:S.rate,reported:'',note:''});f(r);save();render()}
@@ -52,6 +52,10 @@ function setNote(v){upd(function(r){r.note=v})}
 function go(t){tab=t;render()}
 function open_(d){cur=d;tab='today';render()}
 function pay(r){return (+r.parcels||0)*(+r.rate||0)}
+function mi(r){var s=parseFloat(r.ms),f=parseFloat(r.mf);return (isNaN(s)||isNaN(f)||f<s)?0:Math.round((f-s)*10)/10}
+function setMS(v){upd(function(r){r.ms=v})}
+function setMF(v){upd(function(r){r.mf=v})}
+function lastFin(){var k=Object.keys(S.days).filter(function(d){return d<cur&&S.days[d].mf!==undefined&&S.days[d].mf!==''}).sort().pop();return k?S.days[k].mf:''}
 
 function vToday(){var r=day(cur);
 return '<h1>Today’s deliveries</h1><div class="mut" style="margin:-8px 0 10px">ShamsExpress LTD · Co. no. 17541583</div><div class="card"><label>Date</label><input type="date" value="'+cur+'" onchange="cur=this.value||cur;render()">'
@@ -59,18 +63,19 @@ return '<h1>Today’s deliveries</h1><div class="mut" style="margin:-8px 0 10px"
 +'<div class="row cnt" style="margin:14px 0"><button class="alt" onclick="add(-1)">−1</button><button onclick="add(1)">+1</button><button onclick="add(5)">+5</button><button onclick="add(10)">+10</button></div>'
 +'<label>Or type the total</label><input type="number" inputmode="numeric" value="'+(+r.parcels||0)+'" onchange="setP(this.value)">'
 +'<div class="pay" style="margin-top:14px">'+gbp(pay(r))+'</div></div>'
++'<div class="card"><b>Mileage</b><div class="row"><div><label>Start (odometer)</label><input type="number" inputmode="decimal" placeholder="'+(lastFin()?'Last: '+lastFin():'')+'" value="'+esc(r.ms)+'" onchange="setMS(this.value)"></div><div><label>Finish (odometer)</label><input type="number" inputmode="decimal" value="'+esc(r.mf)+'" onchange="setMF(this.value)"></div></div><div style="margin-top:10px;font-weight:600">Miles covered: '+mi(r)+'</div>'+(parseFloat(r.mf)<parseFloat(r.ms)?'<div class="flag">Finish is lower than start</div>':'')+'</div>'
 +'<div class="card"><label>Rate per parcel for this day (£)</label><input type="number" step="0.01" inputmode="decimal" value="'+(+r.rate||0)+'" onchange="setR(this.value)">'
 +'<label>Parcels InPost says you delivered (optional, to check pay)</label><input type="number" inputmode="numeric" value="'+esc(r.reported)+'" onchange="setRep(this.value)">'
 +(r.reported!==''&&+r.reported!==+r.parcels?'<div class="flag" style="margin-top:6px">Difference of '+Math.abs(r.reported-r.parcels)+' parcels vs your count</div>':'')
 +'<label>Notes (missed scans, bad weather, extra rounds…)</label><input value="'+esc(r.note)+'" onchange="setNote(this.value)"></div>'}
 
-function vWeek(){var s=mon(cur);s.setDate(s.getDate()+wk*7);var k=iso(s),tp=0,tm=0,rows='';
-for(var i=0;i<7;i++){var d=new Date(s);d.setDate(s.getDate()+i);var q=iso(d),r=day(q);tp+=+r.parcels||0;tm+=pay(r);
-rows+='<div class="line" onclick="open_(\''+q+'\')"><div>'+pretty(q)+(r.reported!==''&&+r.reported!==+r.parcels?'<div class="flag">InPost count: '+esc(r.reported)+'</div>':'')+'</div><div style="text-align:right">'+(+r.parcels||0)+' × '+gbp(r.rate)+'<br><b>'+gbp(pay(r))+'</b></div></div>'}
+function vWeek(){var s=mon(cur);s.setDate(s.getDate()+wk*7);var k=iso(s),tp=0,tm=0,tmi=0,rows='';
+for(var i=0;i<7;i++){var d=new Date(s);d.setDate(s.getDate()+i);var q=iso(d),r=day(q);tp+=+r.parcels||0;tm+=pay(r);tmi+=mi(r);
+rows+='<div class="line" onclick="open_(\''+q+'\')"><div>'+pretty(q)+(r.reported!==''&&+r.reported!==+r.parcels?'<div class="flag">InPost count: '+esc(r.reported)+'</div>':'')+'</div><div style="text-align:right">'+(+r.parcels||0)+' × '+gbp(r.rate)+'<br><b>'+gbp(pay(r))+'</b>'+(mi(r)?'<div class="mut">'+mi(r)+' mi</div>':'')+'</div></div>'}
 var e=new Date(s);e.setDate(s.getDate()+6);var got=S.paid[k]!==undefined?S.paid[k]:'';
 var diff=got!==''?(+got-tm):null;
 return '<h1>Weekly pay</h1><div class="card"><div class="row"><button class="alt" onclick="wk--;render()">‹ Prev</button><div style="text-align:center;font-weight:600">'+pretty(k)+' – '+pretty(iso(e))+'</div><button class="alt" onclick="wk++;render()">Next ›</button></div></div>'
-+'<div class="card">'+rows+'<div class="tot"><span>'+tp+' parcels</span><span style="color:var(--ok)">'+gbp(tm)+'</span></div></div>'
++'<div class="card">'+rows+'<div class="tot"><span>'+tp+' parcels · '+Math.round(tmi*10)/10+' miles</span><span style="color:var(--ok)">'+gbp(tm)+'</span></div></div>'
 +'<div class="card"><label>Amount actually paid for this week (£)</label><input type="number" step="0.01" inputmode="decimal" value="'+got+'" onchange="S.paid[\''+k+'\']=this.value;save();render()">'
 +(diff===null?'':'<div style="margin-top:8px;font-weight:600;color:'+(Math.abs(diff)<0.005?'var(--ok)':'var(--bad)')+'">'+(Math.abs(diff)<0.005?'Matches your records ✓':(diff<0?'Underpaid by '+gbp(-diff):'Overpaid by '+gbp(diff)))+'</div>')+'</div>'}
 
@@ -104,19 +109,19 @@ return '<h1>Expenses</h1><div class="card"><label>Date</label><input id="xd" typ
 +'<div class="card">'+(list.length?list.map(function(x){return '<div class="line"><div>'+pretty(x.date)+' · '+esc(x.cat)+'<div class="mut">'+esc(x.desc)+'</div></div><div style="text-align:right"><b>'+gbp(x.amt)+'</b><br>'+(x.rc?'<button class="del" style="color:var(--acc)" onclick="viewR('+x.id+')">📎 Receipt</button>':'')+'<button class="del" onclick="delExp('+x.id+')">Delete</button></div></div>'}).join(''):'<div class="mut">No expenses yet.</div>')+'</div>'}
 
 function taxYr(){var n=new Date(),y=n.getFullYear(),s=new Date(y,3,6);if(n<s)s=new Date(y-1,3,6);return iso(s)}
-function vMore(){var ts=taxYr(),inc=0,par=0,ex=0;
-Object.keys(S.days).forEach(function(d){if(d>=ts){inc+=pay(S.days[d]);par+=+S.days[d].parcels||0}});
+function vMore(){var ts=taxYr(),inc=0,par=0,ex=0,mil=0;
+Object.keys(S.days).forEach(function(d){if(d>=ts){inc+=pay(S.days[d]);par+=+S.days[d].parcels||0;mil+=mi(S.days[d])}});
 S.exp.forEach(function(x){if(x.date>=ts)ex+=x.amt});
 return '<h1>Settings & export</h1><div class="card"><label>Default rate per parcel (£) – used for new days</label><input type="number" step="0.01" inputmode="decimal" value="'+S.rate+'" onchange="S.rate=parseFloat(this.value)||0;save();render()">'
 +'<div class="mut" style="margin-top:6px">Changing this won’t alter days you’ve already logged.</div></div>'
 +'<div class="card"><b>ShamsExpress LTD</b><div class="mut">Company no. 17541583<br>6 Park Grange, Hindley, Wigan, WN2 3RT</div><label>Accountant’s email</label><input type="email" value="'+esc(S.acct||'')+'" onchange="S.acct=this.value;save()"></div>'
-+'<div class="card"><b>Tax year to date (from '+pretty(ts)+')</b><div class="line"><span>Parcels</span><span>'+par+'</span></div><div class="line"><span>Delivery income</span><span>'+gbp(inc)+'</span></div><div class="line"><span>Expenses</span><span>'+gbp(ex)+'</span></div><div class="tot"><span>Rough profit</span><span>'+gbp(inc-ex)+'</span></div></div>'
++'<div class="card"><b>Tax year to date (from '+pretty(ts)+')</b><div class="line"><span>Parcels</span><span>'+par+'</span></div><div class="line"><span>Miles</span><span>'+Math.round(mil*10)/10+'</span></div><div class="line"><span>Delivery income</span><span>'+gbp(inc)+'</span></div><div class="line"><span>Expenses</span><span>'+gbp(ex)+'</span></div><div class="tot"><span>Rough profit</span><span>'+gbp(inc-ex)+'</span></div></div>'
 +'<div class="card"><b>Export for your accountant</b><div class="row"><div><label>From</label><input id="ef" type="date" value="'+ts+'"></div><div><label>To</label><input id="et" type="date" value="'+iso(new Date())+'"></div></div>'
 +'<button style="width:100%;margin-top:12px" onclick="doExp()">Create report</button><textarea id="eo" readonly style="margin-top:10px;display:none"></textarea><div id="eb" style="display:none"><button class="alt" style="width:100%;margin-top:8px" onclick="cp()">Copy report</button><button style="width:100%;margin-top:8px" onclick="shareR()">Share report + receipts</button><button class="alt" style="width:100%;margin-top:8px" onclick="mailR()">Email report to accountant</button></div></div>'
 +'<div class="mut">Your data is saved on this device and browser only. Use the export regularly as a backup.</div>'}
 function doExp(){var f=document.getElementById('ef').value,t=document.getElementById('et').value,o='ShamsExpress LTD\nRegistered office: 6 Park Grange, Hindley, Wigan, WN2 3RT\nCompany number: 17541583\nPeriod: '+f+' to '+t+'\n\nINCOME (InPost deliveries)\nDate,Parcels,Rate,Total,Note\n',ti=0,te=0;
 Object.keys(S.days).sort().forEach(function(d){if(d>=f&&d<=t){var r=S.days[d];if(!+r.parcels)return;ti+=pay(r);o+=d+','+r.parcels+','+(+r.rate).toFixed(2)+','+pay(r).toFixed(2)+',"'+String(r.note||'').replace(/"/g,'""')+'"\n'}});
-o+='Total income,,,'+ti.toFixed(2)+'\n\nEXPENSES\nDate,Category,Description,Amount,VAT,Receipt kept\n';
+o+='Total income,,,'+ti.toFixed(2)+'\n\nMILEAGE\nDate,Start,Finish,Miles\n';var tmi=0;Object.keys(S.days).sort().forEach(function(d){if(d>=f&&d<=t){var r=S.days[d];if(mi(r)){tmi+=mi(r);o+=d+','+r.ms+','+r.mf+','+mi(r)+'\n'}}});o+='Total miles,,,'+Math.round(tmi*10)/10+'\n\nEXPENSES\nDate,Category,Description,Amount,VAT,Receipt kept\n';
 S.exp.slice().sort(function(a,b){return a.date<b.date?-1:1}).forEach(function(x){if(x.date>=f&&x.date<=t){te+=x.amt;o+=x.date+','+x.cat+',"'+String(x.desc||'').replace(/"/g,'""')+'",'+x.amt.toFixed(2)+','+x.vat.toFixed(2)+','+(x.rc?'Yes':'No')+'\n'}});
 o+='Total expenses,,,'+te.toFixed(2)+'\n';
 var a=document.getElementById('eo');a.value=o;a.style.display='block';document.getElementById('eb').style.display='block'}
